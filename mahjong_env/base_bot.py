@@ -174,6 +174,86 @@ class RandomMahjongBot(BaseMahjongBot):
             return Action(player, ActionType.CHOW, f'{chow_tile} {play_tile}')
         return pass_action
 
+# class AstarMahjongBot(BaseMahjongBot):
+#     @staticmethod
+#     def choose_play(tiles, playedtitles):
+#         reward = 0
+#         playtile = None
+#         for tile in tiles:
+#             tiles2 = tiles.copy()
+#             tiles2.remove(tile)
+#             tilestuple = tuple(tiles2)
+#             currentReward = Shanten(tilestuple, playedtitles)
+#             if currentReward > reward:
+#                 reward = currentReward
+#                 playtile = tile
+#             # print("tile")
+#             # print(tile)
+#             # print("currentreward")
+#             # print(currentReward )
+#         return playtile
+        
+
+#     def action(self, obs: dict) -> Action:
+#         if len(obs) == 0:
+#             return Action(0, ActionType.PASS, None)
+#         player = obs['player_id']
+#         last_player = obs['last_player']
+#         pass_action = Action(player, ActionType.PASS, None)
+
+#         if obs['last_operation'] == ActionType.DRAW:
+#             if last_player != player:
+#                 return pass_action
+#             else:
+#                 fan = self.check_hu(obs)
+#                 if fan >= 1:
+#                     return Action(player, ActionType.HU, None)
+#                 if self.check_kong(obs):
+#                     return Action(player, ActionType.KONG, obs['last_tile'])
+#                 if self.check_meld_kong(obs):
+#                     return Action(player, ActionType.MELD_KONG, obs['last_tile'])
+#                 # print("obs['tiles']")
+#                 # print(obs['tiles'])
+#                 # print("[obs['last_tile']]")
+#                 # print([obs['last_tile']])
+#                 play_tile = self.choose_play(obs['tiles'] + [obs['last_tile']], obs['played_tiles'])
+#                 return Action(player, ActionType.PLAY, play_tile)
+
+#         if obs['last_operation'] == ActionType.KONG:
+#             return pass_action
+#         if last_player == player:
+#             return pass_action
+
+#         fan = self.check_hu(obs)
+#         if fan >= 1:
+            
+#             return Action(player, ActionType.HU, None)
+#         if obs['last_operation'] == ActionType.MELD_KONG:
+#             return pass_action
+#         if self.check_kong(obs):
+#             return Action(player, ActionType.KONG, None)
+#         if self.check_pung(obs):
+#             tiles = obs['tiles'].copy()
+#             tiles.remove(obs['last_tile'])
+#             tiles.remove(obs['last_tile'])
+#             play_tile = self.choose_play(tiles, obs['played_tiles'])
+#             return Action(player, ActionType.PUNG, play_tile)
+
+#         chow_list = self.check_chow(obs)
+#         if len(chow_list) != 0:
+#             chow_tile = random.choice(chow_list)
+#             chow_t, chow_v = chow_tile[0], int(chow_tile[1])
+#             tiles = obs['tiles'].copy()
+#             for i in range(chow_v - 1, chow_v + 2):
+#                 if i == int(obs['last_tile'][1]):
+#                     continue
+#                 else:
+#                     tiles.remove(f'{chow_t}{i}')
+#             play_tile = self.choose_play(tiles, obs['played_tiles'])
+#             return Action(player, ActionType.CHOW, f'{chow_tile} {play_tile}')
+#         return pass_action
+
+
 class AstarMahjongBot(BaseMahjongBot):
     @staticmethod
     def choose_play(tiles, playedtitles):
@@ -187,11 +267,7 @@ class AstarMahjongBot(BaseMahjongBot):
             if currentReward > reward:
                 reward = currentReward
                 playtile = tile
-            # print("tile")
-            # print(tile)
-            # print("currentreward")
-            # print(currentReward )
-        return playtile
+        return playtile, reward
         
 
     def action(self, obs: dict) -> Action:
@@ -202,57 +278,461 @@ class AstarMahjongBot(BaseMahjongBot):
         pass_action = Action(player, ActionType.PASS, None)
 
         if obs['last_operation'] == ActionType.DRAW:
+            # 別人摸牌
             if last_player != player:
                 return pass_action
             else:
+                # 自己摸牌
+                play_tile, playReward = self.choose_play(obs['tiles'] + [obs['last_tile']], obs['played_tiles'])
+                
+                # 胡
                 fan = self.check_hu(obs)
                 if fan >= 1:
                     return Action(player, ActionType.HU, None)
+                
+                # 暗槓
                 if self.check_kong(obs):
-                    return Action(player, ActionType.KONG, obs['last_tile'])
+                    # 不槓 play
+                    notKongReward = playReward
+
+                    # 槓             
+                    tiles = copy.deepcopy(obs['tiles'])
+                    tiles.remove(obs['last_tile'])
+                    tiles.remove(obs['last_tile'])
+                    tiles.remove(obs['last_tile'])
+                    
+                    KongReward = Shanten(tuple(tiles), obs['played_tiles'])
+                    
+                    if KongReward >= notKongReward:
+                        return Action(player, ActionType.KONG, obs['last_tile'])
+                
+                # 補槓
                 if self.check_meld_kong(obs):
-                    return Action(player, ActionType.MELD_KONG, obs['last_tile'])
-                # print("obs['tiles']")
-                # print(obs['tiles'])
-                # print("[obs['last_tile']]")
-                # print([obs['last_tile']])
-                play_tile = self.choose_play(obs['tiles'] + [obs['last_tile']], obs['played_tiles'])
+                    # 不槓 play
+                    notKongReward = playReward
+                    
+                    # 槓
+                    KongReward = Shanten(tuple(obs['tiles']), obs['played_tiles'])
+                    
+                    if KongReward >= notKongReward:
+                        return Action(player, ActionType.MELD_KONG, obs['last_tile'])
+                
                 return Action(player, ActionType.PLAY, play_tile)
 
+        # 槓
         if obs['last_operation'] == ActionType.KONG:
             return pass_action
+        # 上一步是自己 且不是摸牌
         if last_player == player:
             return pass_action
 
+        # 別人打牌
         fan = self.check_hu(obs)
         if fan >= 1:
-            
             return Action(player, ActionType.HU, None)
+        
+        # 補槓
         if obs['last_operation'] == ActionType.MELD_KONG:
             return pass_action
+        
+        # 槓別人
         if self.check_kong(obs):
+            # 不槓 pass
+            notKongReward = Shanten(tuple(obs['tiles']), obs['played_tiles'])
+
+            # 槓             
+            tiles = copy.deepcopy(obs['tiles'])
+            tiles.remove(obs['last_tile'])
+            tiles.remove(obs['last_tile'])
+            tiles.remove(obs['last_tile'])
+            
+            KongReward = Shanten(tuple(tiles), obs['played_tiles'])
+            
+            if KongReward < notKongReward:
+                return pass_action
+
             return Action(player, ActionType.KONG, None)
+        
+        # 碰
         if self.check_pung(obs):
-            tiles = obs['tiles'].copy()
+            notPungReward = Shanten(tuple(obs['tiles']), obs['played_tiles'])
+
+            tiles = copy.deepcopy(obs['tiles'])
             tiles.remove(obs['last_tile'])
             tiles.remove(obs['last_tile'])
-            play_tile = self.choose_play(tiles, obs['played_tiles'])
+            play_tile, pungReward = self.choose_play(tiles, obs['played_tiles'])
+            # 如果不碰比較好
+            if pungReward < notPungReward:
+                return pass_action
+            
             return Action(player, ActionType.PUNG, play_tile)
 
+        # 吃
         chow_list = self.check_chow(obs)
         if len(chow_list) != 0:
-            chow_tile = random.choice(chow_list)
-            chow_t, chow_v = chow_tile[0], int(chow_tile[1])
+            maxReward = 0
+            maxChow = None
+            maxPlay = None
+
+            notEatReward = Shanten(tuple(obs['tiles']), obs['played_tiles'])
+
+            # iterates all chow
+            for chow_tile in chow_list:
+                chow_t, chow_v = chow_tile[0], int(chow_tile[1])    # int: 一萬 -> W1 -> 1
+                tiles = copy.deepcopy(obs['tiles'])
+                # 把手上吃的牌 去掉
+                for i in range(chow_v - 1, chow_v + 2):
+                    if i == int(obs['last_tile'][1]):
+                        continue
+                    else:
+                        tiles.remove(f'{chow_t}{i}')
+                
+                # iterates all play tile
+                for tile in tiles:
+                    tiles2 = copy.deepcopy(tiles)
+                    tiles2.remove(tile)
+                    tilestuple = tuple(tiles2)
+                    currentReward = Shanten(tilestuple, obs['played_tiles'])
+                    if currentReward > maxReward:
+                        maxReward = currentReward
+                        maxChow = chow_tile
+                        maxPlay = tile
+
+            # 如果不吃比較好
+            if maxReward < notEatReward:
+                return pass_action
+            
+            # best chow
+            chow_t, chow_v = maxChow[0], int(maxChow[1])    # int: 一萬 -> W1 -> 1
             tiles = obs['tiles'].copy()
+            # 把手上吃的牌 去掉
             for i in range(chow_v - 1, chow_v + 2):
                 if i == int(obs['last_tile'][1]):
                     continue
                 else:
                     tiles.remove(f'{chow_t}{i}')
-            play_tile = self.choose_play(tiles, obs['played_tiles'])
-            return Action(player, ActionType.CHOW, f'{chow_tile} {play_tile}')
+
+            # 看要打哪張
+            return Action(player, ActionType.CHOW, f'{maxChow} {maxPlay}')
+        
         return pass_action
+
+
+tile_type =  ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8", "W9",
+              "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9",
+              "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9",
+              "J1", "J2", "J3", "F1", "F2", "F3", "F4"]
+
+class ExpectiMaxMahjongBot(BaseMahjongBot):
+    @staticmethod
+    def choose_play_by_astar(tiles, playedtitles):
+        reward = 0
+        playtile = None
+        for tile in tiles:
+            tiles2 = tiles.copy()
+            tiles2.remove(tile)
+            tilestuple = tuple(tiles2)
+            currentReward = Shanten(tilestuple, playedtitles)
+            if currentReward > reward:
+                reward = currentReward
+                playtile = tile
+        return playtile, reward
     
+    def expectimax(tiles, playedtitles, curDepth, depth, remain_tile_cnt):
+        if curDepth == depth:
+            tilestuple = tuple(tiles)
+            return Shanten(tilestuple, playedtitles)
+
+        val_nodes = []
+        # 第一次 不摸牌
+        if curDepth == 0:   
+            for tile in tiles:
+                tiles2 = tiles.copy()
+                tiles2.remove(tile)
+                playedtitles[tile] += 1
+                val_nodes.append(ExpectiMaxMahjongBot.expectimax(tiles2, playedtitles, curDepth + 1, depth, remain_tile_cnt))
+                playedtitles[tile] -= 1
+        # 其他次 計算摸牌機率
+        else:
+            value = 0
+            # 計算摸牌機率
+            for get_tile in tile_type:
+                if get_tile in playedtitles:
+                    remain = 4 - playedtitles[get_tile]
+                for handTile in tiles:
+                    if handTile == get_tile:
+                        remain -= 1
+                
+                if remain < 0:
+                    print("cur tile: ", get_tile)
+                    print("played_tiles: ", playedtitles)
+                    print("tiles", tiles)
+                    print("ERROR")
+                    return
+                elif remain == 0:
+                    continue
+                else:
+                    prob = remain / remain_tile_cnt
+                
+                # 加入牌組
+                tiles2 = tiles.copy()
+                tiles2.append(get_tile)
+
+                # 胡牌
+                flag = 1
+                NumberofRegularShanten, UsefulRegularShanten = RegularShanten(tuple(tiles))
+                if NumberofRegularShanten == 0:
+                    for i in UsefulRegularShanten:
+                        if i == get_tile:
+                            tmp_val = 20
+                            flag = 0
+
+                # 沒有胡
+                if flag:
+                    # 打牌
+                    tmp_val = 0
+                    for remove_tile in tiles2:
+                        tiles3 = tiles2.copy()
+                        tiles3.remove(remove_tile)
+                        tilestuple = tuple(tiles3)
+                        playedtitles[remove_tile] += 1
+                        tmp_val = max(tmp_val, ExpectiMaxMahjongBot.expectimax(tiles, playedtitles, curDepth + 1, depth, remain_tile_cnt-1))
+                        playedtitles[remove_tile] -= 1
+
+                value += prob * tmp_val
+            return value 
+    
+        # return action
+        if curDepth == 0:
+            for i in range(len(val_nodes)):
+                if val_nodes[i] == max(val_nodes):
+                    return tiles[i], val_nodes[i]
+
+    
+    @staticmethod
+    def choose_play(tiles, playedtitles, initialDepth = 0):
+        depth = 2
+        # 計算所有可能抽到的牌
+        remain_tile_cnt = 34*4
+        # 海底
+        for tile in tile_type:
+            if tile in playedtitles:
+                remain_tile_cnt -= playedtitles[tile]
+        # 手牌
+        remain_tile_cnt -= len(tiles)
+        
+        return ExpectiMaxMahjongBot.expectimax(tiles, playedtitles, initialDepth, depth, remain_tile_cnt)
+
+    def action(self, obs: dict) -> Action:
+        
+        if len(obs) == 0:
+            return Action(0, ActionType.PASS, None)
+        player = obs['player_id']
+        last_player = obs['last_player']
+        pass_action = Action(player, ActionType.PASS, None)
+
+        if obs['last_operation'] == ActionType.DRAW:
+            # 別人摸牌
+            if last_player != player:
+                return pass_action
+            # 自己摸牌
+            else:
+                # 若向聽數>=3 則用astar 節省時間
+                NumberofRegularShanten, UsefulRegularShanten = RegularShanten(tuple(obs['tiles']))
+                if NumberofRegularShanten > 2:
+                    # Astar
+                    play_tile, playReward = self.choose_play_by_astar(obs['tiles'] + [obs['last_tile']], obs['played_tiles'])
+                else:
+                    # expectiMax
+                    play_tile, playReward = self.choose_play(obs['tiles'] + [obs['last_tile']], obs['played_tiles'])
+
+                # 胡
+                fan = self.check_hu(obs)
+                if fan >= 1:
+                    return Action(player, ActionType.HU, None)
+                
+                # 暗槓
+                if self.check_kong(obs):
+                    # 不槓 play
+                    notKongReward = playReward
+
+                    # 槓             
+                    tiles = copy.deepcopy(obs['tiles'])
+                    tiles.remove(obs['last_tile'])
+                    tiles.remove(obs['last_tile'])
+                    tiles.remove(obs['last_tile'])
+                    
+                    # KongReward = Shanten(tuple(tiles), played_tiles)
+                    if NumberofRegularShanten > 2:
+                        # Astar
+                        KongReward = Shanten(tuple(tiles), obs['played_tiles'])
+                    else:
+                        KongReward = self.choose_play(tiles, obs['played_tiles'], 1)
+                    
+                    # KongReward = Shanten(tuple(tiles), obs['played_tiles'])
+                    if KongReward >= notKongReward:
+                        return Action(player, ActionType.KONG, obs['last_tile'])
+
+
+                if self.check_meld_kong(obs):
+                    # 不槓 play
+                    notKongReward = playReward
+                    
+                    # 槓
+                    if NumberofRegularShanten > 2:
+                        # Astar
+                        KongReward = Shanten(tuple(obs['tiles']), obs['played_tiles'])
+                    else:
+                        KongReward = self.choose_play(obs['tiles'], obs['played_tiles'], 1)
+                    
+                    if KongReward >= notKongReward:
+                        return Action(player, ActionType.MELD_KONG, obs['last_tile'])
+                
+                return Action(player, ActionType.PLAY, play_tile)
+
+
+        # 槓
+        if obs['last_operation'] == ActionType.KONG:
+            return pass_action
+        # 上一步是自己 且不是摸牌
+        if last_player == player:
+            return pass_action
+
+        # 別人打牌
+        fan = self.check_hu(obs)
+        if fan >= 1:
+            return Action(player, ActionType.HU, None)
+        
+        # 補槓
+        if obs['last_operation'] == ActionType.MELD_KONG:
+            return pass_action
+    
+        # 槓別人
+        if self.check_kong(obs):
+            # 沒有摸牌
+            # 若向聽數>=3 則用astar 節省時間
+            NumberofRegularShanten, UsefulRegularShanten = RegularShanten(tuple(obs['tiles']))
+            if NumberofRegularShanten > 2:
+                # Astar
+                curReward = Shanten(tuple(obs['tiles']), obs['played_tiles'])
+            else:
+                # expectiMax
+                curReward = self.choose_play(obs['tiles'], obs['played_tiles'], 1)
+            # 不槓 pass
+            notKongReward = curReward
+
+            # 槓             
+            tiles = copy.deepcopy(obs['tiles'])
+            tiles.remove(obs['last_tile'])
+            tiles.remove(obs['last_tile'])
+            tiles.remove(obs['last_tile'])
+            
+            if NumberofRegularShanten > 2:
+                KongReward = Shanten(tuple(tiles), obs['played_tiles'])
+            else:
+                KongReward = self.choose_play(tiles, obs['played_tiles'], 1)
+
+            if KongReward < notKongReward:
+                return pass_action
+
+            return Action(player, ActionType.KONG, None)
+
+        
+        # 碰
+        if self.check_pung(obs):
+            # 沒有摸牌
+            # 若向聽數>=3 則用astar 節省時間
+            NumberofRegularShanten, UsefulRegularShanten = RegularShanten(tuple(obs['tiles']))
+            if NumberofRegularShanten > 2:
+                # Astar
+                curReward = Shanten(tuple(obs['tiles']), obs['played_tiles'])
+            else:
+                # expectiMax
+                curReward = self.choose_play(obs['tiles'], obs['played_tiles'], 1)
+            notPungReward = curReward
+
+            tiles = copy.deepcopy(obs['tiles'])
+            tiles.remove(obs['last_tile'])
+            tiles.remove(obs['last_tile'])
+
+            NumberofRegularShanten, UsefulRegularShanten = RegularShanten(tuple(obs['tiles']))
+            # 若向聽數>=3 則用astar 節省時間
+            if NumberofRegularShanten > 2:
+                play_tile, pungReward = self.choose_play_by_astar(tiles, obs['played_tiles'])
+            else:
+                play_tile, pungReward = self.choose_play(tiles, obs['played_tiles'])
+                
+            # 如果不碰比較好
+            if pungReward < notPungReward:
+                return pass_action
+            
+            return Action(player, ActionType.PUNG, play_tile)
+        
+        # 吃
+        chow_list = self.check_chow(obs)
+        if len(chow_list) != 0:
+            maxReward = 0
+            maxChow = None
+            maxPlay = None
+
+            # 沒有摸牌
+            # 若向聽數>=3 則用astar 節省時間
+            NumberofRegularShanten, UsefulRegularShanten = RegularShanten(tuple(obs['tiles']))
+            if NumberofRegularShanten > 2:
+                # Astar
+                curReward = Shanten(tuple(obs['tiles']), obs['played_tiles'])
+            else:
+                # expectiMax
+                curReward = self.choose_play(obs['tiles'], obs['played_tiles'], 1)
+            notEatReward = curReward
+
+            # iterates all chow
+            for chow_tile in chow_list:
+                chow_t, chow_v = chow_tile[0], int(chow_tile[1])    # int: 一萬 -> W1 -> 1
+                tiles = copy.deepcopy(obs['tiles'])
+                # 把手上吃的牌 去掉
+                for i in range(chow_v - 1, chow_v + 2):
+                    if i == int(obs['last_tile'][1]):
+                        continue
+                    else:
+                        tiles.remove(f'{chow_t}{i}')
+                
+                # iterates all play tile
+                for tile in tiles:
+                    tiles2 = copy.deepcopy(tiles)
+                    tiles2.remove(tile)
+                    tilestuple = tuple(tiles2)
+                    
+                    # 若向聽數>=3 則用astar 節省時間
+                    if NumberofRegularShanten > 2:
+                        currentReward = Shanten(tilestuple, obs['played_tiles'])
+                    else:
+                        currentReward = self.choose_play(tiles2, obs['played_tiles'], 1)
+                        
+                    if currentReward > maxReward:
+                        maxReward = currentReward
+                        maxChow = chow_tile
+                        maxPlay = tile
+
+            # 如果不吃比較好
+            if maxReward < notEatReward:
+                return pass_action
+            
+            # best chow
+            chow_t, chow_v = maxChow[0], int(maxChow[1])    # int: 一萬 -> W1 -> 1
+            tiles = copy.deepcopy(obs['tiles'])
+            # 把手上吃的牌 去掉
+            for i in range(chow_v - 1, chow_v + 2):
+                if i == int(obs['last_tile'][1]):
+                    continue
+                else:
+                    tiles.remove(f'{chow_t}{i}')
+
+            # 看要打哪張
+            return Action(player, ActionType.CHOW, f'{maxChow} {maxPlay}')
+
+        return pass_action
+
 
 class RLMahjongBot(BaseMahjongBot):
     @staticmethod
@@ -458,3 +938,6 @@ def checkgang(input):
         predicted = torch.argmax(output)
         return predicted.item()
         # print(f'Predicted class: {predicted.item()}')
+
+
+
