@@ -1,12 +1,12 @@
 
-from .ten import *
-
 import random
 from collections import Counter
 from typing import List
 from .consts import ActionType, ClaimingType
 from .player_data import Action
 from MahjongGB import MahjongFanCalculator
+from MahjongGB import RegularShanten
+import copy
 from .ten import *
 import torch
 import numpy as np
@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+
 
 class BaseMahjongBot:
     @staticmethod
