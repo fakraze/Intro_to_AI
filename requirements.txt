@@ -1,0 +1,6 @@
+MahjongGB==0.0.0
+numpy==1.26.4
+PyMahjongGB==1.2.0
+setuptools==68.2.2
+torch==2.3.0
+tqdm==4.66.4

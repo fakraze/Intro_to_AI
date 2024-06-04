@@ -7,13 +7,21 @@
 
 We utilize the `mahjong_env` from [Github](https://github.com/ailab-pku/PyMahjongGB),  which clearly defines the rules and environment of Mahjong.
 
-### Package
+### Requirements
 
-To run the environment and our final project, you need to install `PyMahjongGB`, a useful package with many defined functions.
-
-Install `MahjongGB` using the following command:
 ```
-pip install PyMahjongGB
+MahjongGB==0.0.0
+numpy==1.26.4
+PyMahjongGB==1.2.0
+setuptools==68.2.2
+torch==2.3.0
+tqdm==4.66.4
+```
+
+To install the requirement packages, use the following command:
+
+```
+pip install -r requirements.txt
 ```
 
 ## Dataset
