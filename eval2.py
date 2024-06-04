@@ -3,20 +3,22 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
+import time
 from mahjong_env.core import Mahjong
 from mahjong_env.consts import ActionType
 from mahjong_env.player_data import Action
 from mahjong_env.base_bot import RandomMahjongBot, AstarMahjongBot, BaseMahjongBot, RLMahjongBot
 
 from RL.model2 import DiscardModel, ClaimingModel
+from RL.model import ClaimingModel as six
 
 ACTION = {'PASS': 0, 'DRAW': 1, 'PLAY': 2,
           'CHOW': 3, 'PUNG': 4, 'KONG': 5, 'AnGang': 5, 'MELD_KONG': 6, 'Hu': 7, }
 TILE_SET = {
     'W':0, 'T': 9, 'B': 18, 'F': 27, 'J':31
 }
-class SLagent(BaseMahjongBot):
+
+class SLagent1(BaseMahjongBot):
     def init(self, discardModelPath, isChiModelPath, chiModelPath, pengModelPath, gangModelPath, bugangModelPath, angangModelPath):
         self.isChiModel=ClaimingModel()
         self.isChiModel.load_state_dict(torch.load(isChiModelPath))
@@ -138,7 +140,13 @@ class SLagent(BaseMahjongBot):
                                     p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
             if ret:
                 return Action(player, ActionType.KONG, None)
-        
+        if self.check_meld_kong(obs):
+            ret=self.bugang(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+            if ret:
+                return Action(player, ActionType.MELD_KONG, None)
         if self.check_pung(obs):
             ret=self.peng(p[player]+\
                                     p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
@@ -147,16 +155,15 @@ class SLagent(BaseMahjongBot):
             if ret==1:
                 tiles = obs['tiles'].copy()
                 idx=getID(obs['last_tile'])
-                p[player][idx]-=2
-                p[player+4][idx]+=3
-                
+                p[0][idx]-=2
+                p[4][idx]+=3
                 play_tile = self.discard(p[player]+\
                                     p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
                                     p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
                                     p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
                 # assert(p[0][getID(play_tile)]>0)
-                p[player][idx]+=2
-                p[player+4][idx]-=3
+                p[0][idx]+=2
+                p[4][idx]-=3
                 return Action(player, ActionType.PUNG, play_tile)
         chow_list = self.check_chow(obs)
         if len(chow_list) != 0:
@@ -173,8 +180,8 @@ class SLagent(BaseMahjongBot):
                     else:
                         #print(f'{ret[i]}{i}')
                         #tiles.remove(f'{chow_t}{i}')
-                        p[player][i]-=1
-                    p[player+4][i]+=1
+                        p[0][i]-=1
+                    p[4][i]+=1
                 discard=self.discard(p[player]+\
                                     p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
                                     p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
@@ -186,9 +193,123 @@ class SLagent(BaseMahjongBot):
                     else:
                         #print(f'{ret[i]}{i}')
                         #tiles.remove(f'{chow_t}{i}')
+                        p[0][i]+=1
+                    p[4][i]-=1
+                return Action(player, ActionType.CHOW, f'{self.trans(ret[1])} {discard}')
+        return pass_action
+class SLagent2(BaseMahjongBot):
+    def init(self, discardModelPath, claimingModelPath):
+        self.claiming=six()
+        self.claiming.load_state_dict(torch.load(claimingModelPath))
+        self.discardModel=DiscardModel()
+        self.discardModel.load_state_dict(torch.load(discardModelPath))
+        self.claiming.eval()
+    def trans(self, card):
+        if card<9:
+            return 'W'+str(card+1)
+        if card<18:
+            return 'T'+str(card-8)
+        if card<27:
+            return 'B'+str(card-17)
+        if card<31:
+            return 'F'+str(card-26)
+        return 'J'+str(card-30)
+    def discard(self, input):
+        input=torch.tensor(input).float()
+        card=torch.topk(self.discardModel(input), 34).indices
+        #print(card)
+        #print(input[0:34])
+        for i in range(34):
+            if input[card[i].item()]>0:
+                return self.trans(card[i].item())
+    
+    def selectAction(self, p, obs: dict):
+        if len(obs) == 0:
+            return Action(0, ActionType.PASS, None)
+        player = obs['player_id']
+        last_player = obs['last_player']
+        pass_action = Action(0, ActionType.PASS, None)
+
+        if obs['last_operation'] == ActionType.DRAW:
+            if last_player != player:
+                return pass_action
+            else:
+                if self.check_hu(obs)>=8:
+                    return Action(player, ActionType.HU, None)
+                
+                ret=self.claiming(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+                ret=torch.argmax(ret).item()
+                if ret==4 and self.check_kong(obs):
+                    return Action(player, ActionType.MELD_KONG, obs['last_tile'])
+                if ret==5 and self.check_meld_kong(obs):
+                    return Action(player, ActionType.KONG, obs['last_tile'])
+                discard=self.discard(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+                # assert(p[0][getID(discard)]>0)
+                return Action(player, ActionType.PLAY, discard)
+        if obs['last_operation'] == ActionType.KONG:
+            return pass_action
+        if last_player == player:
+            return pass_action
+        
+        if self.check_hu(obs)>=8:
+            return Action(player, ActionType.HU, None)
+        if obs['last_operation'] == ActionType.MELD_KONG:
+            return pass_action
+        
+        ret=self.claiming(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+        ret=torch.argmax(ret).item()
+        if ret==0:
+            return pass_action
+        if ret==1:
+                
+                chow_list = self.check_chow(obs)
+                if len(chow_list)==0:
+                    return pass_action
+                ret=getID(chow_list[0])
+                for i in range(ret - 1, ret + 2):
+                    if i == getID(obs['last_tile']):
+                        continue
+                    else:
+                        p[player][i]-=1
+                    p[player+4][i]+=1
+                discard=self.discard(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+
+                for i in range(ret - 1, ret + 2):
+                    if i == getID(obs['last_tile']):
+                        continue
+                    else:
+                        #print(f'{ret[i]}{i}')
+                        #tiles.remove(f'{chow_t}{i}')
                         p[player][i]+=1
                     p[player+4][i]-=1
-                return Action(player, ActionType.CHOW, f'{self.trans(ret[1])} {discard}')
+                return Action(player, ActionType.CHOW, f'{self.trans(ret)} {discard}')
+        if ret==2 and self.check_pung(obs):
+            idx=getID(obs['last_tile'])
+            p[player][idx]-=2
+            p[player+4][idx]+=3
+            
+            play_tile = self.discard(p[player]+\
+                                p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+            # assert(p[0][getID(play_tile)]>0)
+            p[player][idx]+=2
+            p[player+4][idx]-=3
+            return Action(player, ActionType.PUNG, play_tile)
+        if ret==3 and self.check_kong(obs):
+            return Action(player, ActionType.KONG, None)
         return pass_action
 def getID(tile):
     return TILE_SET[tile[0]]+int(tile[1])-1
@@ -199,11 +320,10 @@ def clearAllCurrent(p):
             p[8+j][i]=0
 cnt=[0 for i in range(4)]
 loss=[0 for i in range(4)]
-huang=[0]
 
-def random_test(a):
+def random_test(a, b):
     
-    env = Mahjong()
+    env = Mahjong(random_seed=time.time())
     res = env.init()
     p=[[0 for i in range(34)] for j in range(16)]
     for player in range(4):
@@ -273,9 +393,9 @@ def random_test(a):
         actions = []
         tmp=p.copy()
         actions.append(a.selectAction(tmp,env.player_obs(0)))
-        actions.append(Astar.action(obs[1]))
-        actions.append(a.selectAction(tmp,env.player_obs(2)))
-        actions.append(a.selectAction(tmp,env.player_obs(3)))
+        actions.append(agent.action(obs[1]))
+        actions.append(b.selectAction(tmp, obs[2]))
+        actions.append(Astar.action(obs[3]))
         #[agent.action(ob) for ob in obs]
         preCard=res[-1]
         #print(actions)
@@ -304,15 +424,15 @@ def main():
     bugangpath='./RL/model/2/bugang.pth'
     angangpath='./RL/model/2/angang.pth'
     discardpath='./RL/model/2/discard.pth'
+    claimingModelPath='./RL/model/claiming.pth'
     
-    
-    a=SLagent()
+    b=SLagent2()
+    b.init(discardpath, claimingModelPath)
+    a=SLagent1()
     a.init(discardpath, ischipath, chipath, pengpath, gangpath, bugangpath, angangpath)
-    
-    for i in range(500):
-        random_test(a)
+    for i in range(1000):
+        random_test(a, b)
     print(cnt)
     print(loss)
-    print(huang[0])
 if __name__ == '__main__':
     main()

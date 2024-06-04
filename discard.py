@@ -16,12 +16,9 @@ TILE_SET = {
 
 NO_VALID_ACTION = ['补花']
 NUM_PLAYERS = 4
-peng=[]
-chi=[]
-gang=[]
-angang=[]
-bugang=[]
-Pass=[]
+
+Play=[]
+label=[]
 def getID(tile):
     return TILE_SET[tile[0]]+int(tile[1])-1
 def genOne(tile):
@@ -34,7 +31,7 @@ def play_round(lines, env):
     tile1=lines[3][3:16]
     tile2=lines[4][3:16]
     tile3=lines[5][3:16]
-    p=[[0 for i in range(34)] for j in range(5)] # 4 for showed
+    p=[[0 for i in range(34)] for j in range(5)] # 4 for shown
     for i in tile0:
         p[0][getID(i)]+=1
     for i in tile1:
@@ -46,29 +43,24 @@ def play_round(lines, env):
     
     firstPlayer=0
     pre=""
-    preAct=''
-    prePlayer=-1
     for i in range(6, len(lines)-3):
         _, player, act, tile, *__=lines[i]
         # print(_, player, act, tile)
         player=int(player)
         if act=='Draw':
-            if preAct=='Play':
-                for pp in range(4):
-                    if pp!=prePlayer:
-                        Pass.append(p[pp]+p[4]+genOne(pre))
             p[player][getID(tile)]+=1
-        elif act=='Play':           
+        elif act=='Play':
+            Play.append(p[player]+p[4])
+            tmp=[0 for i in range(34)]
+            tmp[getID(tile)]=1
+            label.append(tmp)
             p[player][getID(tile)]-=1
             p[4][getID(tile)]+=1
         elif act=='Peng':
-            peng.append(p[player]+p[4]+genOne(pre))
             p[player][getID(tile)]-=2
             p[4][getID(tile)]+=2
 
-
         elif act=='Chi':
-            chi.append(p[player]+p[4]+genOne(pre))
             p[player][getID(tile)-1]-=1
             p[player][getID(tile)]-=1
             p[player][getID(tile)+1]-=1
@@ -80,21 +72,17 @@ def play_round(lines, env):
             p[4][getID(pre)]-=1
             
         elif act=='Gang':
-            gang.append(p[player]+p[4]+genOne(pre))
             p[player][getID(tile)]-=3
             p[4][getID(tile)]+=3
         elif act=='AnGang':
-            angang.append(p[player]+p[4]+genOne(pre))
             p[player][getID(tile)]-=4
         elif act=='BuGang':
-            bugang.append(p[player]+p[4]+genOne(pre))
             p[player][getID(tile)]-=1
             p[4][getID(tile)]+=1
             
         pre=tile
-        preAct=act
-        prePlayer=player
 
+    
 
     
 
@@ -111,21 +99,12 @@ if __name__ == '__main__':
             lines.clear()
             t+=1
             print(t)
-            if t>20000:
+            if t>20000: 
                 break
         else:
             lines.append(line.rstrip().split(' '))
 
 
-    np.save('dataset/peng',np.array(peng))
-    np.save('dataset/chi',np.array(chi))
-    np.save('dataset/gang',np.array(gang))
-    np.save('dataset/bugang',np.array(bugang))
-    np.save('dataset/angang',np.array(angang))
-    np.save('dataset/Pass',np.array(Pass))
-    print(len(peng))
-    print(len(chi))
-    print(len(gang))
-    print(len(bugang))
-    print(len(angang))    
-    print(len(Pass))
+    np.save('dataset/play',np.array(Play))
+    np.save('dataset/label', np.array(label))
+    print(len(Play))
