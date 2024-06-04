@@ -96,7 +96,7 @@ class SLagent1(BaseMahjongBot):
             if last_player != player:
                 return pass_action
             else:
-                if self.check_hu(obs)>=8:
+                if self.check_hu(obs)>=0:
                     return Action(player, ActionType.HU, None)
                 
                 if self.check_kong(obs):
@@ -129,7 +129,7 @@ class SLagent1(BaseMahjongBot):
         if last_player == player:
             return pass_action
         
-        if self.check_hu(obs)>=8:
+        if self.check_hu(obs)>=0:
             return Action(player, ActionType.HU, None)
         if obs['last_operation'] == ActionType.MELD_KONG:
             return pass_action
@@ -234,7 +234,7 @@ class SLagent2(BaseMahjongBot):
             if last_player != player:
                 return pass_action
             else:
-                if self.check_hu(obs)>=8:
+                if self.check_hu(obs)>=0:
                     return Action(player, ActionType.HU, None)
                 
                 ret=self.claiming(p[player]+\
@@ -257,7 +257,7 @@ class SLagent2(BaseMahjongBot):
         if last_player == player:
             return pass_action
         
-        if self.check_hu(obs)>=8:
+        if self.check_hu(obs)>=0:
             return Action(player, ActionType.HU, None)
         if obs['last_operation'] == ActionType.MELD_KONG:
             return pass_action
@@ -393,9 +393,9 @@ def random_test(a, b):
         actions = []
         tmp=p.copy()
         actions.append(a.selectAction(tmp,env.player_obs(0)))
-        actions.append(agent.action(obs[1]))
-        actions.append(b.selectAction(tmp, obs[2]))
-        actions.append(Astar.action(obs[3]))
+        actions.append(Astar.action(obs[1]))
+        actions.append(agent.action(obs[2]))
+        actions.append(agent.action(obs[3]))
         #[agent.action(ob) for ob in obs]
         preCard=res[-1]
         #print(actions)
@@ -430,7 +430,7 @@ def main():
     b.init(discardpath, claimingModelPath)
     a=SLagent1()
     a.init(discardpath, ischipath, chipath, pengpath, gangpath, bugangpath, angangpath)
-    for i in range(1000):
+    for i in range(500):
         random_test(a, b)
     print(cnt)
     print(loss)
