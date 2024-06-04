@@ -7,11 +7,11 @@ import torch.optim as optim
 class ClaimingModel(nn.Module):
     def __init__(self):
         super(ClaimingModel, self).__init__()
-        self.inputSize = 102
+        self.inputSize = 34*13
         self.outputSize = 6
-        self.hiddenSize1 = 128
-        self.hiddenSize2 = 64
-        self.hiddenSize3 = 64
+        self.hiddenSize1 = 512
+        self.hiddenSize2 = 256
+        self.hiddenSize3 = 256
         
         self.network=nn.Sequential(
             nn.Linear(self.inputSize, self.hiddenSize1),
@@ -20,7 +20,10 @@ class ClaimingModel(nn.Module):
             nn.Linear(self.hiddenSize1, self.hiddenSize2),
             nn.Dropout(0.3),
             nn.ReLU(),
-            nn.Linear(self.hiddenSize2, self.outputSize),
+            nn.Linear(self.hiddenSize2, self.hiddenSize3),
+            nn.Dropout(0.3),
+            nn.ReLU(),
+            nn.Linear(self.hiddenSize3, self.outputSize),
             nn.Softmax()
         )
         self.apply(self.init_weight)
@@ -30,6 +33,7 @@ class ClaimingModel(nn.Module):
             torch.nn.init.xavier_normal_(module.weight)
             module.bias.data.fill_(0)
     def forward(self, input):
+        input=torch.tensor(input).float()
         return self.network(input)
     
 
@@ -37,15 +41,16 @@ class ClaimingModel(nn.Module):
 
 
 if __name__=='__main__':
+    """
     if torch.cuda.is_available():
         device = torch.device("cuda")
-    else :
-        device=torch.device('cpu')
+    else :"""
+    device=torch.device('cpu')
 
     Model=ClaimingModel().to(device)
-    criterion = nn.MSELoss()
-    optimizer=optim.Adam(Model.parameters(), lr=0.01)
-    batch_size=50
+    criterion = nn.CrossEntropyLoss()
+    optimizer=optim.Adam(Model.parameters(), lr=0.0001)
+    batch_size=10
 
     pengSet=np.load('../dataset/peng.npy')
     chiSet=np.load('../dataset/chi.npy')
@@ -55,7 +60,7 @@ if __name__=='__main__':
     PassSet=np.load('../dataset/Pass.npy')
     print('Finishing loading Data!!')
     # print( len(PassSet), len(chiSet), len(pengSet),  len(gangSet), len(bugangSet), len(angangSet), )
-    # 4597819 232248 177092 7037 9655 5110 
+    # 2511705 232248 177092 7037 9655 5110 
 
 
     
@@ -74,36 +79,44 @@ if __name__=='__main__':
     #                                shuffle=False,)
     
     runningLoss=0
+    losses=[]
+    pasAcc=[]
+    chiAcc=[]
+    pengAcc=[]
+    bugangAcc=[]
+    gangAcc=[]
+    angangAcc=[]
     
+    totAccuracy=[]
     Model.train()
-    for epoch in range(3):
+    for epoch in range(10000):
         TrainingData=[]
-        idx=np.random.randint(len(PassSet), size=200000)
+        idx=np.random.randint(len(PassSet), size=100)
         T=PassSet[idx,:]
         for t in T:
             TrainingData.append((t,[1,0,0,0,0,0]))
 
-        idx=np.random.randint(len(chiSet), size=100000)
+        idx=np.random.randint(len(chiSet), size=100)
         T=chiSet[idx,:]
         for t in T:
             TrainingData.append((t,[0,1,0,0,0,0]))
 
-        idx=np.random.randint(len(pengSet), size=100000)
+        idx=np.random.randint(len(pengSet), size=100)
         T=pengSet[idx,:]
         for t in T:
             TrainingData.append((t,[0,0,1,0,0,0]))
 
-        idx=np.random.randint(len(gangSet), size=3500)
+        idx=np.random.randint(len(gangSet), size=70)
         T=gangSet[idx,:]
         for t in T:
             TrainingData.append((t,[0,0,0,1,0,0]))
 
-        idx=np.random.randint(len(bugangSet), size=4000)
+        idx=np.random.randint(len(bugangSet), size=90)
         T=bugangSet[idx,:]
         for t in T:
             TrainingData.append((t,[0,0,0,0,1,0]))
 
-        idx=np.random.randint(len(angangSet), size=2000)
+        idx=np.random.randint(len(angangSet), size=50)
         T=angangSet[idx,:]
         for t in T:
             TrainingData.append((t,[0,0,0,0,0,1]))
@@ -120,51 +133,58 @@ if __name__=='__main__':
             loss=criterion(output, torch.stack(label, dim=1).float().to(device))
             loss.backward()
             optimizer.step()
-
+            
             runningLoss+=loss.item()
-            if i%50==49:
-                print('{} loss: {}'.format(i, runningLoss))
-                runningLoss=0 
+
+        print('{} loss: {}'.format(i, runningLoss))
+        runningLoss=0 
+        losses.append(runningLoss)
+
+        TestingData=[]
+        idx=np.random.randint(len(PassSet), size=500)
+        T=PassSet[idx,:]
+        for t in T:
+            TestingData.append((t,0))
+
+        idx=np.random.randint(len(chiSet), size=500)
+        T=chiSet[idx,:]
+        for t in T:
+            TestingData.append((t,1))
+
+        idx=np.random.randint(len(pengSet), size=500)
+        T=pengSet[idx,:]
+        for t in T:
+            TestingData.append((t,2))
+
+        idx=np.random.randint(len(gangSet), size=500)
+        T=gangSet[idx,:]
+        for t in T:
+            TestingData.append((t,3))
+
+        idx=np.random.randint(len(bugangSet), size=500)
+        T=bugangSet[idx,:]
+        for t in T:
+            TestingData.append((t,4))
+
+        idx=np.random.randint(len(angangSet), size=500)
+        T=angangSet[idx,:]
+        for t in T:
+            TestingData.append((t,5))
+        correct=np.zeros(6)
+        sum=np.zeros(6)
+        Model.eval()
+        for data, label in TestingData:
+            output=Model(torch.tensor(data).float().to(device))
+            if torch.argmax(output).item()==label:
+                correct[label]+=1
+            sum[label]+=1
+        for ty in range(6):
+            print('Accuracy of {}: {}'.format(ty, correct[ty]/sum[ty]))
+        print('Accuracy: {}'.format(np.sum(correct)/np.sum(sum)))
+        totAccuracy.append(np.sum(correct)/np.sum(sum))
+    #torch.save(Model.state_dict(), './model/claiming.pth')
 
 
-    TestingData=[]
-    idx=np.random.randint(len(PassSet), size=500)
-    T=PassSet[idx,:]
-    for t in T:
-        TestingData.append((t,0))
 
-    idx=np.random.randint(len(chiSet), size=500)
-    T=chiSet[idx,:]
-    for t in T:
-        TestingData.append((t,1))
 
-    idx=np.random.randint(len(pengSet), size=500)
-    T=pengSet[idx,:]
-    for t in T:
-        TestingData.append((t,2))
-
-    idx=np.random.randint(len(gangSet), size=500)
-    T=gangSet[idx,:]
-    for t in T:
-        TestingData.append((t,3))
-
-    idx=np.random.randint(len(bugangSet), size=500)
-    T=bugangSet[idx,:]
-    for t in T:
-        TestingData.append((t,4))
-
-    idx=np.random.randint(len(angangSet), size=500)
-    T=angangSet[idx,:]
-    for t in T:
-        TestingData.append((t,5))
-    correct=0
-    sum=0
-    Model.eval()
-    for data, label in TestingData:
-        output=Model(torch.tensor(data).float().to(device))
-        if torch.argmax(output).item()==label:
-            correct+=1
-        sum+=1
-
-    print('Accuracy: {}'.format(correct/sum))
 
