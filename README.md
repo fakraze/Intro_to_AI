@@ -44,8 +44,12 @@ python process2.py
 ```
 
 ## Train
-run train.py to train the models. 
+run train.py to train the models. For example:
+```
+python train.py --model 1 # Train the discard model for NN23.
+```
 * `--model`:  `0`,`1` Discard{1,23} `2`,`3`,`4` Claiming{1,2,3} 
+* You can see other args in train.py.
 
 ## Related Work
 
