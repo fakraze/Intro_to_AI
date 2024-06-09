@@ -16,7 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-
+from mahjong_env.nn import *
 
 class BaseMahjongBot:
     @staticmethod
@@ -838,107 +838,159 @@ class RLMahjongBot(BaseMahjongBot):
                 return Action(player, ActionType.CHOW, f'{chow_tile} {play_tile}')
         return pass_action
 
+class NN1gent(BaseMahjongBot):
+    def init(self, discardModelPath, chiModelPath, pengModelPath, gangModelPath, bugangModelPath, angangModelPath):
 
+        self.pengModel=NN1Claiming()
+        self.pengModel.load_state_dict(torch.load(pengModelPath))
+        self.gangModel=NN1Claiming()
+        self.gangModel.load_state_dict(torch.load(gangModelPath))
+        self.bugangModel=NN1Claiming()
+        self.bugangModel.load_state_dict(torch.load(bugangModelPath))
+        self.angangModel=NN1Claiming()
+        self.angangModel.load_state_dict(torch.load(angangModelPath))
+        self.chiModel=NN1Claiming()
+        self.chiModel.load_state_dict(torch.load(chiModelPath))
+        self.discardModel=NN1Discard()
+        self.discardModel.load_state_dict(torch.load(discardModelPath))
 
-# In tryModel.py
+    def chi(self, input):
+        input=torch.tensor(input).float()
+        needChi=self.chiModel(input)
+        if torch.argmax(needChi)==1:
+            return 1
+        return 0    
 
+    def peng(self, input):
+        input=torch.tensor(input).float()
+        if torch.argmax(self.pengModel(input)).item()==1:
+            return 1
+        return 0
 
+    def gang(self, input):
+        input=torch.tensor(input).float()
+        if torch.argmax(self.gangModel(input)).item()==1:
+            return 1
+        return 0
 
-class ClaimingModel(nn.Module):
-    def __init__(self):
-        super(ClaimingModel, self).__init__()
-        self.inputSize = 102
-        self.outputSize = 2
-        self.hiddenSize1 = 128
-        self.hiddenSize2 = 128
+    def bugang(self, input):
+        input=torch.tensor(input).float()
+        if torch.argmax(self.bugangModel(input)).item()==1:
+            return 1
+        return 0
+
+    def angang(self, input):
+        input=torch.tensor(input).float()
+        if torch.argmax(self.angangModel(input)).item()==1:
+            return 1
+        return 0
+    def trans(self, card):
+        if card<9:
+            return 'W'+str(card+1)
+        if card<18:
+            return 'T'+str(card-8)
+        if card<27:
+            return 'B'+str(card-17)
+        if card<31:
+            return 'F'+str(card-26)
+        return 'J'+str(card-30)
+    def discard(self, input):
+        input=torch.tensor(input).float()
+        card=torch.topk(self.discardModel(input), 34).indices
+        #print(card)
+        #print(input[0:34])
+        for i in range(34):
+            if input[card[i].item()]>0:
+                return self.trans(card[i].item())
         
-        self.network = nn.Sequential(
-            nn.Linear(self.inputSize, self.hiddenSize1),
-            nn.Dropout(0.3),
-            nn.ReLU(),
-            nn.Linear(self.hiddenSize1, self.hiddenSize2),
-            nn.Dropout(0.3),
-            nn.ReLU(),
-            nn.Linear(self.hiddenSize2, self.outputSize)
-            # Removed Softmax
-        )
-        self.apply(self.init_weight)
+    def selectAction(self, p, obs: dict):
+        pn=[0 for i in range(34)]
+        dc=[0 for i in range(34)]
+        for player in range(4):
+            for i in range(34):
+                pn[i]+=p[player+4][i]
+                dc[i]+=p[player+8][i]
+                pn[i]+=p[player+12][i]
+        if len(obs) == 0:
+            return Action(0, ActionType.PASS, None)
+        player = obs['player_id']
+        last_player = obs['last_player']
+        pass_action = Action(0, ActionType.PASS, None)
 
-    def init_weight(self, module):
-        if isinstance(module, nn.Linear):
-            torch.nn.init.xavier_normal_(module.weight)
-            module.bias.data.fill_(0)
+        if obs['last_operation'] == ActionType.DRAW:
+            if last_player != player:
+                return pass_action
+            else:
+                if self.check_hu(obs)>=8:
+                    return Action(player, ActionType.HU, None)
+                
+                if self.check_kong(obs):
+                    
+                    ret=self.angang(p[player]+pn+dc)
+                    
+                    if ret:
+                        return Action(player, ActionType.KONG, obs['last_tile'])
+                if self.check_meld_kong(obs):
+                    ret=self.bugang(p[player]+pn+dc)
+                    if ret:
+                        return Action(player, ActionType.MELD_KONG, obs['last_tile'])
 
-    def forward(self, input):
-        return self.network(input)
-    
+                discard=self.discard(p[player]+pn)
+                # assert(p[0][getID(discard)]>0)
+                return Action(player, ActionType.PLAY, discard)
+            
 
-
-def checkchi(input):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = ClaimingModel().to(device)
-    model.load_state_dict(torch.load('RL/model/chi.pth'))
-    model.eval()
-    input_tensor = torch.tensor(input, dtype=torch.float32).to(device)
-    
-    with torch.no_grad():
-        output = model(input_tensor)
-        predicted = torch.argmax(output)
-        return predicted.item()
-        # print(f'Predicted class: {predicted.item()}')
-
-
-def checkpeng(input):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = ClaimingModel().to(device)
-    model.load_state_dict(torch.load('RL/model/peng.pth'))
-    model.eval()
-    input_tensor = torch.tensor(input, dtype=torch.float32).to(device)
-    
-    with torch.no_grad():
-        output = model(input_tensor)
-        predicted = torch.argmax(output)
-        return predicted.item()
-        # print(f'Predicted class: {predicted.item()}')
-
-def checkangang(input):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = ClaimingModel().to(device)
-    model.load_state_dict(torch.load('RL/model/angang.pth'))
-    model.eval()
-    input_tensor = torch.tensor(input, dtype=torch.float32).to(device)
-    
-    with torch.no_grad():
-        output = model(input_tensor)
-        predicted = torch.argmax(output)
-        return predicted.item()
-        # print(f'Predicted class: {predicted.item()}')
+        if obs['last_operation'] == ActionType.KONG:
+            return pass_action
+        if last_player == player:
+            return pass_action
         
-def checkbugang(input):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = ClaimingModel().to(device)
-    model.load_state_dict(torch.load('RL/model/bugang.pth'))
-    model.eval()
-    input_tensor = torch.tensor(input, dtype=torch.float32).to(device)
-    
-    with torch.no_grad():
-        output = model(input_tensor)
-        predicted = torch.argmax(output)
-        return predicted.item()
-        # print(f'Predicted class: {predicted.item()}')
-        
-def checkgang(input):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = ClaimingModel().to(device)
-    model.load_state_dict(torch.load('RL/model/gang.pth'))
-    model.eval()
-    input_tensor = torch.tensor(input, dtype=torch.float32).to(device)
-    
-    with torch.no_grad():
-        output = model(input_tensor)
-        predicted = torch.argmax(output)
-        return predicted.item()
-        # print(f'Predicted class: {predicted.item()}')
-
-
-
+        if self.check_hu(obs)>=8:
+            return Action(player, ActionType.HU, None)
+        if obs['last_operation'] == ActionType.MELD_KONG:
+            return pass_action
+        if self.check_kong(obs):
+            ret=self.gang(p[player]+pn+dc)
+            if ret:
+                return Action(player, ActionType.KONG, None)
+        if self.check_meld_kong(obs):
+            ret=self.bugang(p[player]+pn+dc)
+            if ret:
+                return Action(player, ActionType.MELD_KONG, None)
+        if self.check_pung(obs):
+            ret=self.peng(p[player]+pn+dc)
+            if ret==1:
+                tiles = obs['tiles'].copy()
+                idx=getID(obs['last_tile'])
+                p[player][idx]-=2
+                p[player+4][idx]+=3
+                play_tile = self.discard(p[player]+pn)
+                # assert(p[0][getID(play_tile)]>0)
+                p[player][idx]+=2
+                p[player+4][idx]-=3
+                return Action(player, ActionType.PUNG, play_tile)
+        chow_list = self.check_chow(obs)
+        if len(chow_list) != 0:
+            ret=self.chi(p[player]+pn+dc)
+            if ret==1:
+                tmp=getID(chow_list[0])
+                for i in range(tmp - 1, tmp + 2):
+                    if i == getID(obs['last_tile']):
+                        continue
+                    else:
+                        #print(f'{ret[i]}{i}')
+                        #tiles.remove(f'{chow_t}{i}')
+                        p[player][i]-=1
+                    p[player+4][i]+=1
+                discard=self.discard(p[player]+pn)
+                # assert(p[0][getID(discard)]>0)
+                for i in range(tmp - 1, tmp + 2):
+                    if i == getID(obs['last_tile']):
+                        continue
+                    else:
+                        #print(f'{ret[i]}{i}')
+                        #tiles.remove(f'{chow_t}{i}')
+                        p[player][i]+=1
+                    p[player+4][i]-=1
+                return Action(player, ActionType.CHOW, f'{self.trans(tmp)} {discard}')
+        return pass_action

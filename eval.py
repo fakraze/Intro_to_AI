@@ -171,21 +171,16 @@ class SLagent(BaseMahjongBot):
                     if i == getID(obs['last_tile']):
                         continue
                     else:
-                        #print(f'{ret[i]}{i}')
-                        #tiles.remove(f'{chow_t}{i}')
                         p[player][i]-=1
                     p[player+4][i]+=1
                 discard=self.discard(p[player]+\
                                     p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
                                     p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
                                     p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
-                # assert(p[0][getID(discard)]>0)
                 for i in range(ret[1] - 1, ret[1] + 2):
                     if i == getID(obs['last_tile']):
                         continue
                     else:
-                        #print(f'{ret[i]}{i}')
-                        #tiles.remove(f'{chow_t}{i}')
                         p[player][i]+=1
                     p[player+4][i]-=1
                 return Action(player, ActionType.CHOW, f'{self.trans(ret[1])} {discard}')

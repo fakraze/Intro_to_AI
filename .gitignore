@@ -1,7 +1,5 @@
 __pycache__/
 .idea/
 dataset/
-mahjong_data/data/README-en.txt
-mahjong_data/data/README.txt
-mahjong_data/data/data.txt
-mahjong_data/data/sample.txt
+mahjong_data/data/
+./test.py

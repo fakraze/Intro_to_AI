@@ -1,5 +1,6 @@
 import json
 import numpy as np
+import os
 from tqdm import tqdm 
 from mahjong_env.core import Mahjong
 from mahjong_env.consts import ActionType
@@ -25,6 +26,8 @@ bugang=[]
 Pass=[]
 discard=[]
 labelDiscard=[]
+loadPass=True
+loadDiscard=True
 def getID(tile):
     return TILE_SET[tile[0]]+int(tile[1])-1
 def genOne(tile):
@@ -66,17 +69,16 @@ def play_round(lines, env):
         # print(_, player, act, tile)
         player=int(player)
         if act=='Draw': 
-            if preAct=='Play':
+            if preAct=='Play' and loadPass:
                 for er in range(1,4):
-                   """ Pass.append(p[(player+er)%4]+\
+                    Pass.append(p[(player+er)%4]+\
                                 p[(player+er)%4+4]+p[(player+er+1)%4+4]+p[(player+er+2)%4+4]+p[(player+er+3)%4+4]+\
                                 p[(player+er)%4+8]+p[(player+er+1)%4+8]+p[(player+er+2)%4+8]+p[(player+er+3)%4+8]+\
-                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])    """
-            
+                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])
             p[player][getID(tile)]+=1
             clearAllCurrent(p)
         elif act=='Play':
-            if len(discard)<1000000:
+            if loadDiscard:
                 er=0
                 discard.append(p[(player+er)%4]+\
                                     p[(player+er)%4+4]+p[(player+er+1)%4+4]+p[(player+er+2)%4+4]+p[(player+er+3)%4+4]+\
@@ -90,10 +92,10 @@ def play_round(lines, env):
         elif act=='Peng':
             er=0
             
-            """peng.append(p[(player+er)%4]+\
+            peng.append(p[(player+er)%4]+\
                                 p[(player+er)%4+4]+p[(player+er+1)%4+4]+p[(player+er+2)%4+4]+p[(player+er+3)%4+4]+\
                                 p[(player+er)%4+8]+p[(player+er+1)%4+8]+p[(player+er+2)%4+8]+p[(player+er+3)%4+8]+\
-                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12]) """   
+                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])
             p[player][getID(pre)]-=2
             p[player+4][getID(pre)]+=3
             clearAllCurrent(p)
@@ -118,27 +120,27 @@ def play_round(lines, env):
             clearAllCurrent(p)
         elif act=='Gang':
             er=0
-            """gang.append(p[(player+er)%4]+\
+            gang.append(p[(player+er)%4]+\
                                 p[(player+er)%4+4]+p[(player+er+1)%4+4]+p[(player+er+2)%4+4]+p[(player+er+3)%4+4]+\
                                 p[(player+er)%4+8]+p[(player+er+1)%4+8]+p[(player+er+2)%4+8]+p[(player+er+3)%4+8]+\
-                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])"""    
+                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])  
             p[player][getID(tile)]-=3
             p[player+4][getID(tile)]+=4
             clearAllCurrent(p)
         elif act=='AnGang':
             er=0
-            """angang.append(p[(player+er)%4]+\
+            angang.append(p[(player+er)%4]+\
                                 p[(player+er)%4+4]+p[(player+er+1)%4+4]+p[(player+er+2)%4+4]+p[(player+er+3)%4+4]+\
                                 p[(player+er)%4+8]+p[(player+er+1)%4+8]+p[(player+er+2)%4+8]+p[(player+er+3)%4+8]+\
-                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])"""    
+                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])  
             p[player][getID(tile)]-=4
             clearAllCurrent(p)
         elif act=='BuGang':
             er=0
-            """bugang.append(p[(player+er)%4]+\
+            bugang.append(p[(player+er)%4]+\
                                 p[(player+er)%4+4]+p[(player+er+1)%4+4]+p[(player+er+2)%4+4]+p[(player+er+3)%4+4]+\
                                 p[(player+er)%4+8]+p[(player+er+1)%4+8]+p[(player+er+2)%4+8]+p[(player+er+3)%4+8]+\
-                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])"""    
+                                p[(player+er)%4+12]+p[(player+er+1)%4+12]+p[(player+er+2)%4+12]+p[(player+er+3)%4+12])   
             p[player][getID(tile)]-=1
             p[player+4][getID(tile)]+=1
             clearAllCurrent(p)
@@ -150,36 +152,41 @@ def play_round(lines, env):
     
 
 if __name__ == '__main__':
-    file = open('mahjong_data/data/data.txt', 'r')
-    # target=open('mahjong_data/data/dataset.txt', 'w')
-    lines=[]
-    env=Mahjong()
-    # pbar=tqdm(file, total=len(file.readlines()))
-    t=0
-    for line in file:
-        if line=='\n':
-            play_round(lines, env)
-            lines.clear()
-            t+=1
-            print(t)
-            #if t>10000:
-                #break
-        else:
-            lines.append(line.rstrip().split(' '))
+    with open('./mahjong_data/data/data.txt', 'r') as file:
+        totalLines=sum(1 for line in file)
+    with open('./mahjong_data/data/data.txt', 'r') as file:
+        # print(totalLines)
+        if not os.path.exists('./dataset'):
+            os.makedirs('./dataset')
+        
+        if not os.path.exists('./dataset/2'):
+            os.makedirs('./dataset/2')
+        
+        
+        # target=open('mahjong_data/data/dataset.txt', 'w')
+        lines=[]
+        env=Mahjong()
+        # pbar=tqdm(file, total=len(file.readlines()))
+        t=0
+        for i, line in enumerate(tqdm(file, total=totalLines)):
+            if line=='\n':
+                play_round(lines, env)
+                lines.clear()
+                if i>500000:
+                    loadDiscard=False
+                if i>200000:
+                    loadPass=False
+            else:
+                lines.append(line.rstrip().split(' '))
 
-
-    #np.save('dataset/peng',np.array(peng))
-    #np.save('dataset/chi',np.array(chi))
-    #np.save('dataset/labelchi',np.array(labelChi))
-    np.save('dataset/discard',np.array(discard))
-    np.save('dataset/labeldiscard',np.array(labelDiscard))
-    #np.save('dataset/gang',np.array(gang))
-    #np.save('dataset/bugang',np.array(bugang))
-    #np.save('dataset/angang',np.array(angang))
-    #np.save('dataset/Pass',np.array(Pass))
-    #print(len(peng))
-    #print(len(chi))
-    print(len(discard))
-    #print(len(bugang))
-    #print(len(angang))    
-    #print(len(Pass))
+        np.save('dataset/2/peng',np.array(peng))
+        np.save('dataset/2/chi',np.array(chi))
+        np.save('dataset/2/labelChi',np.array(labelChi))
+        np.save('dataset/2/discard',np.array(discard))
+        np.save('dataset/2/labelDiscard',np.array(labelDiscard))
+        np.save('dataset/2/gang',np.array(gang))
+        np.save('dataset/2/bugang',np.array(bugang))
+        np.save('dataset/2/angang',np.array(angang))
+        np.save('dataset/2/Pass',np.array(Pass))
+        print('Dataset\tDiscard\tchi\tpeng\tgang\tbugang\tangang\tpass')
+        print(f'Size\t{len(discard)}\t{len(chi)}\t{len(peng)}\t{len(gang)}\t{len(bugang)}\t{len(angang)}\t{len(Pass)}')

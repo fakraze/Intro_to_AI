@@ -26,10 +26,21 @@ pip install -r requirements.txt
 ## Dataset
 
 We use the dataset from the [IJCAI 2024 Mahjong AI Competition](https://botzone.org.cn/static/gamecontest2024a_cn.html#).
-You have to unzip the mahjong_data/data.zip in the same file and get the data.txt to run process{1,2}.py
+Run this command to unzip the mahjong_data/data.zip
 ```
-python process.py # for NN(I)
-python process2.py # for NN(II) and NN(III)
+python unzip.py
+```
+Then, run process{1,2}.py
+```
+python process1.py 
+# prepare dataset for NN(I)
+# Dataset chi     peng    gang    bugang  angang  pass    play
+# Size    232248  177092  7037    9655    5110    2511705 2338069
+
+python process2.py 
+# prepare dataset for NN(II) and NN(III)
+# Dataset Discard chi     peng    gang    bugang  angang  pass
+# Size    224365  232248  177092  7037    9655    5110    240804
 ```
 
 ## Related Work
