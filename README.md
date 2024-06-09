@@ -43,6 +43,10 @@ python process2.py
 # Size    224365  232248  177092  7037    9655    5110    240804
 ```
 
+## Train
+run train.py to train the models. 
+* `--model`:  `0`,`1` Discard{1,23} `2`,`3`,`4` Claiming{1,2,3} 
+
 ## Related Work
 
 [Building a 3-Player Mahjong AI using Deep Reinforcement Learning](https://arxiv.org/abs/2202.12847?fbclid=IwZXh0bgNhZW0CMTAAAR0YjcYbLQcKdE3nHg887u7unZWGCm9znNFdwsnMOyK5wBfx9G9eQYzyujY_aem_AWoehQKIlg1YNNDJ5cfaHrxgHJvLQwlN1A7wy0_yN7aLtXAIYyYx9JDt0k0avpP25EWTTbWoLVXFSUtwgfqEUZxx)
