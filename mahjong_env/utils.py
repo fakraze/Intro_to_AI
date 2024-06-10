@@ -189,3 +189,16 @@ def json2simple(request: dict) -> str:
         simple.append(res_act)
     simple.append(req_hist[-1])
     return '\n'.join(simple)
+
+TILESET = {
+    'W':0, 'T': 9, 'B': 18, 'F': 27, 'J':31
+}
+
+def getID(tile):
+    return TILESET[tile[0]]+int(tile[1])-1
+
+def clearAllCurrent(p):
+    for i in range(34):
+        for j in range(4):
+            p[12+j][i]+=p[8+j][i]
+            p[8+j][i]=0

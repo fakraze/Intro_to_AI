@@ -152,9 +152,9 @@ def play_round(lines, env):
     
 
 if __name__ == '__main__':
-    with open('./mahjong_data/data/data.txt', 'r') as file:
+    with open('./mahjong_data/data/data.txt', 'r', encoding=('utf-8' if os.name=='nt' else None)) as file:
         totalLines=sum(1 for line in file)
-    with open('./mahjong_data/data/data.txt', 'r') as file:
+    with open('./mahjong_data/data/data.txt', 'r', encoding=('utf-8' if os.name=='nt' else None)) as file:
         # print(totalLines)
         if not os.path.exists('./dataset'):
             os.makedirs('./dataset')

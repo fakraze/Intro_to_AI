@@ -66,18 +66,24 @@ This agent uses `Shanten()` as a heuristic function to calculate the shortest pa
 
 The state evaluation function for this agent is defined as: $8 - Shanten()+tiles*0.01$
 
-### 3. Supervised Learning (SL) Agent
+### 3. Neural Network (NN) Agent
 
 This agent uses a neural network to train an agent to mimic human actions when playing Mahjong.
 
 > The detail of main approach is provided in the presentation report slide.
 
-
 ## Run/Test The Whole Project
 
 To run or test the project, use the following command:
 ```
-python eval.py # Astar agent against 3 randomBot
-python eval1.py # NN(I) against 3 randomBot
-python eval2.py # NN(II&III) against 3 randomBot
+python eval.py 
 ```
+Here are some args:
+
+* `--east`: assign the agent for east player
+* `--south`: assign the agent for south player
+* `--west`: assign the agent for west player
+* `--north`: assign the agent for north player
+* `0` for random agent, `1` for Astar agent, `2` for Expectmax agent
+* `3` for NN1 agent, `4` for NN2 agent, `5` for NN3 agent
+* `--round`: # of test round

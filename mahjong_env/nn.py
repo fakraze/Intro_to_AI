@@ -96,7 +96,7 @@ class NN2Claiming(nn.Module):
     
 class NN3Claiming(nn.Module):
     def __init__(self):
-        super(NN2Claiming, self).__init__()
+        super(NN3Claiming, self).__init__()
         self.inputSize = 34*13
         self.outputSize = 6
         self.hiddenSize1 = 512

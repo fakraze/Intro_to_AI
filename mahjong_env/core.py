@@ -219,8 +219,8 @@ class Mahjong:
     def __check_hu(self, player: int, action: Action) -> bool:
         if action.act_type == ActionType.HU:
             fan = self.__calculate_fan(player)
-            # self.__lose(player) if fan < 8 else self.__win(player, fan)
-            self.__win(player, fan)
+            self.__lose(player) if fan < 8 else self.__win(player, fan)
+            # self.__win(player, fan)
             return False
         return True
 

@@ -2,4 +2,3 @@ __pycache__/
 .idea/
 dataset/
 mahjong_data/data/
-./test.py

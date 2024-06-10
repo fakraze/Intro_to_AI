@@ -40,6 +40,7 @@ def trainNN1Discard(args, device):
             loss=criterion(output, label.float().to(device))
             loss.backward()
             optimizer.step()
+            # runningLoss+=loss.item()
         #losses.append(loss)
         if args.eval and (epoch+1)%args.evalFreq==0:
             TestingData=[]
@@ -93,7 +94,7 @@ def trainNN23Discard(args, device):
 
         trainloader = DataLoader(TrainingData, batch_size=batch_size,
                                      shuffle=True)
-
+        #runningLoss=0
         for i, data in enumerate(trainloader, 0):
             input,label=data
             optimizer.zero_grad()
@@ -136,12 +137,12 @@ def trainNN1Claiming(args, device):
     optimizer = optim.Adam(Model.parameters(), lr=args.lr)
     batch_size = args.batchSize
 
-    pengSet = np.load('../dataset/peng.npy')
-    chiSet = np.load('../dataset/chi.npy')
-    gangSet = np.load('../dataset/gang.npy')
-    bugangSet = np.load('../dataset/bugang.npy')
-    angangSet = np.load('../dataset/angang.npy')
-    PassSet = np.load('../dataset/Pass.npy')
+    pengSet = np.load('./dataset/1/peng.npy')
+    chiSet = np.load('./dataset/1/chi.npy')
+    gangSet = np.load('./dataset/1/gang.npy')
+    bugangSet = np.load('./dataset/1/bugang.npy')
+    angangSet = np.load('./dataset/1/angang.npy')
+    PassSet = np.load('./dataset/1/Pass.npy')
     
     #runningLoss = 0
     
@@ -165,7 +166,7 @@ def trainNN1Claiming(args, device):
                     TrainingLabels.append(label)
 
             trainloader = DataLoader(TensorDataset(torch.tensor(TrainingData, dtype=torch.float32), torch.tensor(TrainingLabels, dtype=torch.long)), batch_size=batch_size, shuffle=True)
-
+            runningLoss=0
             for i, (input, label) in enumerate(trainloader, 0):
                 optimizer.zero_grad()
                 output = Model(input.to(device))
@@ -223,12 +224,12 @@ def trainNN2Claiming(args, device):
     optimizer=optim.Adam(Model.parameters(), lr=args.lr)
     batch_size=args.batchSize
 
-    pengSet=np.load('../dataset/peng.npy')
-    chiSet=np.load('../dataset/chi.npy')
-    gangSet=np.load('../dataset/gang.npy')
-    bugangSet=np.load('../dataset/bugang.npy')
-    angangSet=np.load('../dataset/angang.npy')
-    PassSet=np.load('../dataset/Pass.npy')
+    pengSet=np.load('./dataset/2/peng.npy')
+    chiSet=np.load('./dataset/2/chi.npy')
+    gangSet=np.load('./dataset/2/gang.npy')
+    bugangSet=np.load('./dataset/2/bugang.npy')
+    angangSet=np.load('./dataset/2/angang.npy')
+    PassSet=np.load('./dataset/2/Pass.npy')
     
     """
     claiming: pass chi peng gang bugang angang 
@@ -347,12 +348,12 @@ def trainNN3Claiming(args, device):
     optimizer=optim.Adam(Model.parameters(), lr=args.lr)
     batch_size=args.batchSize
 
-    pengSet=np.load('../dataset/peng.npy')
-    chiSet=np.load('../dataset/chi.npy')
-    gangSet=np.load('../dataset/gang.npy')
-    bugangSet=np.load('../dataset/bugang.npy')
-    angangSet=np.load('../dataset/angang.npy')
-    PassSet=np.load('../dataset/Pass.npy')
+    pengSet=np.load('./dataset/2/peng.npy')
+    chiSet=np.load('./dataset/2/chi.npy')
+    gangSet=np.load('./dataset/2/gang.npy')
+    bugangSet=np.load('./dataset/2/bugang.npy')
+    angangSet=np.load('./dataset/2/angang.npy')
+    PassSet=np.load('./dataset/2/Pass.npy')
     #print('Finishing loading Data!!')
     """
     claiming: pass chi peng gang bugang angang 
@@ -387,24 +388,24 @@ def trainNN3Claiming(args, device):
         for t in T:
             TrainingData.append((t,[0,0,1,0,0,0]))
 
-        idx=np.random.randint(len(gangSet), size=350)
+        idx=np.random.randint(len(gangSet), size=500)
         T=gangSet[idx,:]
         for t in T:
             TrainingData.append((t,[0,0,0,1,0,0]))
 
-        idx=np.random.randint(len(bugangSet), size=450)
+        idx=np.random.randint(len(bugangSet), size=500)
         T=bugangSet[idx,:]
         for t in T:
             TrainingData.append((t,[0,0,0,0,1,0]))
 
-        idx=np.random.randint(len(angangSet), size=250)
+        idx=np.random.randint(len(angangSet), size=500)
         T=angangSet[idx,:]
         for t in T:
             TrainingData.append((t,[0,0,0,0,0,1]))
 
         trainloader = torch.utils.data.DataLoader(TrainingData, batch_size=batch_size,
                                      shuffle=True)
-
+        runningLoss=0 
         for i, data in enumerate(trainloader, 0):
             input,label=data
             optimizer.zero_grad()
@@ -461,7 +462,7 @@ def trainNN3Claiming(args, device):
                 sum[label]+=1
             for ty in range(6):
                 print('Accuracy of {}: {}'.format(ty, correct[ty]/sum[ty]))
-            print('Accuracy: {}'.format(np.sum(correct)/np.sum(sum)))
+            print('Accuracy {}: {}'.format(epoch+1, np.sum(correct)/np.sum(sum)))
             #totAccuracy.append(np.sum(correct)/np.sum(sum))
     if not os.path.exists('./model/4'):
         os.makedirs('./model/4')
@@ -480,7 +481,7 @@ if __name__=='__main__':
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--evalFreq', default=1, type=int)
     args = parser.parse_args()
-    print(args)
+    # print(args)
     if not os.path.exists('./model'):
         os.makedirs('./model')
     

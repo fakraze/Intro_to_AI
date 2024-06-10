@@ -10,13 +10,12 @@ import copy
 from .ten import *
 import torch
 import numpy as np
-import torch
-import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from mahjong_env.nn import *
+from mahjong_env.utils import *
 
 class BaseMahjongBot:
     @staticmethod
@@ -117,7 +116,7 @@ class RandomMahjongBot(BaseMahjongBot):
             return random.choice(winds)
         return random.choice(single)
 
-    def action(self, obs: dict) -> Action:
+    def action(self, p, obs: dict) -> Action:
         if len(obs) == 0:
             return Action(0, ActionType.PASS, None)
         player = obs['player_id']
@@ -271,7 +270,7 @@ class AstarMahjongBot(BaseMahjongBot):
         return playtile, reward
         
 
-    def action(self, obs: dict) -> Action:
+    def action(self, p, obs: dict) -> Action:
         if len(obs) == 0:
             return Action(0, ActionType.PASS, None)
         player = obs['player_id']
@@ -288,7 +287,7 @@ class AstarMahjongBot(BaseMahjongBot):
                 
                 # 胡
                 fan = self.check_hu(obs)
-                if fan >= 1:
+                if fan >= 8:
                     return Action(player, ActionType.HU, None)
                 
                 # 暗槓
@@ -329,7 +328,7 @@ class AstarMahjongBot(BaseMahjongBot):
 
         # 別人打牌
         fan = self.check_hu(obs)
-        if fan >= 1:
+        if fan >= 8:
             return Action(player, ActionType.HU, None)
         
         # 補槓
@@ -524,7 +523,7 @@ class ExpectiMaxMahjongBot(BaseMahjongBot):
         
         return ExpectiMaxMahjongBot.expectimax(tiles, playedtitles, initialDepth, depth, remain_tile_cnt)
 
-    def action(self, obs: dict) -> Action:
+    def action(self, p, obs: dict) -> Action:
         
         if len(obs) == 0:
             return Action(0, ActionType.PASS, None)
@@ -549,7 +548,7 @@ class ExpectiMaxMahjongBot(BaseMahjongBot):
 
                 # 胡
                 fan = self.check_hu(obs)
-                if fan >= 1:
+                if fan >= 8:
                     return Action(player, ActionType.HU, None)
                 
                 # 暗槓
@@ -601,7 +600,7 @@ class ExpectiMaxMahjongBot(BaseMahjongBot):
 
         # 別人打牌
         fan = self.check_hu(obs)
-        if fan >= 1:
+        if fan >= 8:
             return Action(player, ActionType.HU, None)
         
         # 補槓
@@ -734,111 +733,7 @@ class ExpectiMaxMahjongBot(BaseMahjongBot):
 
         return pass_action
 
-
-class RLMahjongBot(BaseMahjongBot):
-    @staticmethod
-    def choose_play(tiles, playedtitles):
-        reward = 0
-        playtile = None
-        for tile in tiles:
-            tiles2 = tiles.copy()
-            tiles2.remove(tile)
-            tilestuple = tuple(tiles2)
-            currentReward = Shanten(tilestuple, playedtitles)
-            if currentReward > reward:
-                reward = currentReward
-                playtile = tile
-        return playtile
-
-    def action(self, obs: dict) -> Action:
-        
-        curTitles = obs['tiles']
-        AllTitles = ["w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8", "w9",
-                    "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9",
-                    "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9",
-                    "F1", "F2", "F3", "F4",
-                    "J1", "J2", "J3"
-                    ]
-        curTitlesList = [(word, 0) for word in AllTitles]
-        for tile in curTitles:
-            for i, (word, value) in enumerate(curTitlesList):
-                if word == tile:
-                    curTitlesList[i] = (word, value + 1)
-                    break
-        
-        playTitle = [obs['last_tile']]
-        
-        playTitleList = [(word, 0) for word in AllTitles]
-        for tile in playTitle:
-            # print(tile)
-            for i, (word, value) in enumerate(playTitleList):
-                # print(word)
-                if word == tile:
-                    # print(word)
-                    playTitleList[i] = (word, value + 1)
-                    break
-        curValues = [value for word, value in curTitlesList]
-        # print()
-        seavalues = np.array(list(obs['played_tiles'].values()))
-        playValues = [value for word, value in playTitleList]
-        input = np.array([])
-        input = np.concatenate((input, np.array(curValues), np.array(seavalues), np.array(playValues)))       
-        
-        if len(obs) == 0:
-            return Action(0, ActionType.PASS, None)
-        player = obs['player_id']
-        last_player = obs['last_player']
-        pass_action = Action(player, ActionType.PASS, None)
-
-        if obs['last_operation'] == ActionType.DRAW:
-            if last_player != player:
-                return pass_action
-            else:
-                fan = self.check_hu(obs)
-                if fan >= 1:
-                    return Action(player, ActionType.HU, None) # don't change
-                if self.check_kong(obs) and checkangang(input):
-                    return Action(player, ActionType.KONG, obs['last_tile'])
-                if self.check_meld_kong(obs) and checkbugang(input):
-                    return Action(player, ActionType.MELD_KONG, obs['last_tile'])
-                play_tile = self.choose_play(obs['tiles'] + [obs['last_tile']], obs['played_tiles'])
-                return Action(player, ActionType.PLAY, play_tile)
-
-        if obs['last_operation'] == ActionType.KONG:
-            return pass_action
-        if last_player == player: 
-            return pass_action
-
-        fan = self.check_hu(obs)
-        if fan >= 1:
-            return Action(player, ActionType.HU, None)
-        if obs['last_operation'] == ActionType.MELD_KONG:
-            return pass_action
-        if self.check_kong(obs) and checkgang(input):
-            return Action(player, ActionType.KONG, None)
-        if self.check_pung(obs) and checkpeng:
-            tiles = obs['tiles'].copy()
-            tiles.remove(obs['last_tile'])
-            tiles.remove(obs['last_tile'])
-            play_tile = self.choose_play(tiles, obs['played_tiles'])
-            return Action(player, ActionType.PUNG, play_tile)
-
-        chow_list = self.check_chow(obs)
-        if checkchi(input):
-            if len(chow_list) != 0:
-                chow_tile = random.choice(chow_list)
-                chow_t, chow_v = chow_tile[0], int(chow_tile[1])
-                tiles = obs['tiles'].copy()
-                for i in range(chow_v - 1, chow_v + 2):
-                    if i == int(obs['last_tile'][1]):
-                        continue
-                    else:
-                        tiles.remove(f'{chow_t}{i}')
-                play_tile = self.choose_play(tiles, obs['played_tiles'])
-                return Action(player, ActionType.CHOW, f'{chow_tile} {play_tile}')
-        return pass_action
-
-class NN1gent(BaseMahjongBot):
+class NN1agent(BaseMahjongBot):
     def init(self, discardModelPath, chiModelPath, pengModelPath, gangModelPath, bugangModelPath, angangModelPath):
 
         self.pengModel=NN1Claiming()
@@ -903,7 +798,7 @@ class NN1gent(BaseMahjongBot):
             if input[card[i].item()]>0:
                 return self.trans(card[i].item())
         
-    def selectAction(self, p, obs: dict):
+    def action(self, p, obs: dict):
         pn=[0 for i in range(34)]
         dc=[0 for i in range(34)]
         for player in range(4):
@@ -993,4 +888,299 @@ class NN1gent(BaseMahjongBot):
                         p[player][i]+=1
                     p[player+4][i]-=1
                 return Action(player, ActionType.CHOW, f'{self.trans(tmp)} {discard}')
+        return pass_action
+
+class NN2agent(BaseMahjongBot):
+    def init(self, discardModelPath, isChiModelPath, pengModelPath, gangModelPath, bugangModelPath, angangModelPath):
+        self.isChiModel=NN2Claiming()
+        self.isChiModel.load_state_dict(torch.load(isChiModelPath))
+        self.pengModel=NN2Claiming()
+        self.pengModel.load_state_dict(torch.load(pengModelPath))
+        self.gangModel=NN2Claiming()
+        self.gangModel.load_state_dict(torch.load(gangModelPath))
+        self.bugangModel=NN2Claiming()
+        self.bugangModel.load_state_dict(torch.load(bugangModelPath))
+        self.angangModel=NN2Claiming()
+        self.angangModel.load_state_dict(torch.load(angangModelPath))
+        #self.chiModel=NN23Discard()
+        #self.chiModel.load_state_dict(torch.load(chiModelPath))
+        self.discardModel=NN23Discard()
+        self.discardModel.load_state_dict(torch.load(discardModelPath))
+
+    def chi(self, input):
+        input=torch.tensor(input).float()
+        needChi=self.isChiModel(input)
+        if torch.argmax(needChi)==1:
+            
+            return 1
+        return 0 
+
+    def peng(self, input):
+        input=torch.tensor(input).float()
+        if torch.argmax(self.pengModel(input)).item()==1:
+            return 1
+        return 0
+
+    def gang(self, input):
+        input=torch.tensor(input).float()
+        if torch.argmax(self.gangModel(input)).item()==1:
+            return 1
+        return 0
+
+    def bugang(self, input):
+        input=torch.tensor(input).float()
+        if torch.argmax(self.bugangModel(input)).item()==1:
+            return 1
+        return 0
+
+    def angang(self, input):
+        input=torch.tensor(input).float()
+        if torch.argmax(self.angangModel(input)).item()==1:
+            return 1
+        return 0
+    def trans(self, card):
+        if card<9:
+            return 'W'+str(card+1)
+        if card<18:
+            return 'T'+str(card-8)
+        if card<27:
+            return 'B'+str(card-17)
+        if card<31:
+            return 'F'+str(card-26)
+        return 'J'+str(card-30)
+    def discard(self, input):
+        input=torch.tensor(input).float()
+        card=torch.topk(self.discardModel(input), 34).indices
+        #print(card)
+        #print(input[0:34])
+        for i in range(34):
+            if input[card[i].item()]>0:
+                return self.trans(card[i].item())
+        
+    def action(self, p, obs: dict):
+        if len(obs) == 0:
+            return Action(0, ActionType.PASS, None)
+        player = obs['player_id']
+        last_player = obs['last_player']
+        pass_action = Action(0, ActionType.PASS, None)
+
+        if obs['last_operation'] == ActionType.DRAW:
+            if last_player != player:
+                return pass_action
+            else:
+                if self.check_hu(obs)>=8:
+                    return Action(player, ActionType.HU, None)
+                
+                if self.check_kong(obs):
+                    
+                    ret=self.angang(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+                    
+                    if ret:
+                        return Action(player, ActionType.KONG, obs['last_tile'])
+                if self.check_meld_kong(obs):
+                    ret=self.bugang(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+                    if ret:
+                        return Action(player, ActionType.MELD_KONG, obs['last_tile'])
+
+                discard=self.discard(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+                # assert(p[0][getID(discard)]>0)
+                return Action(player, ActionType.PLAY, discard)
+            
+
+        if obs['last_operation'] == ActionType.KONG:
+            return pass_action
+        if last_player == player:
+            return pass_action
+        
+        if self.check_hu(obs)>=8:
+            return Action(player, ActionType.HU, None)
+        if obs['last_operation'] == ActionType.MELD_KONG:
+            return pass_action
+        if self.check_kong(obs):
+            ret=self.gang(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+            if ret:
+                return Action(player, ActionType.KONG, None)
+        if self.check_meld_kong(obs):
+            ret=self.bugang(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+            if ret:
+                return Action(player, ActionType.MELD_KONG, None)
+        if self.check_pung(obs):
+            ret=self.peng(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+            if ret==1:
+                tiles = obs['tiles'].copy()
+                idx=getID(obs['last_tile'])
+                p[0][idx]-=2
+                p[4][idx]+=3
+                play_tile = self.discard(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+                # assert(p[0][getID(play_tile)]>0)
+                p[0][idx]+=2
+                p[4][idx]-=3
+                return Action(player, ActionType.PUNG, play_tile)
+        ret=self.chi(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+        if ret==1:
+                chow_list = self.check_chow(obs)
+                if len(chow_list)==0:
+                    return pass_action
+                ret=getID(chow_list[0])
+                for i in range(ret - 1, ret + 2):
+                    if i == getID(obs['last_tile']):
+                        continue
+                    else:
+                        p[player][i]-=1
+                    p[player+4][i]+=1
+                discard=self.discard(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+
+                for i in range(ret - 1, ret + 2):
+                    if i == getID(obs['last_tile']):
+                        continue
+                    else:
+                        #print(f'{ret[i]}{i}')
+                        #tiles.remove(f'{chow_t}{i}')
+                        p[player][i]+=1
+                    p[player+4][i]-=1
+                return Action(player, ActionType.CHOW, f'{self.trans(ret)} {discard}')
+        return pass_action
+
+
+class NN3agent(BaseMahjongBot):
+    def init(self, discardModelPath, claimingModelPath):
+        self.claiming=NN3Claiming()
+        self.claiming.load_state_dict(torch.load(claimingModelPath))
+        self.discardModel=NN23Discard()
+        self.discardModel.load_state_dict(torch.load(discardModelPath))
+        
+        
+    def trans(self, card):
+        if card<9:
+            return 'W'+str(card+1)
+        if card<18:
+            return 'T'+str(card-8)
+        if card<27:
+            return 'B'+str(card-17)
+        if card<31:
+            return 'F'+str(card-26)
+        return 'J'+str(card-30)
+    def discard(self, input):
+        input=torch.tensor(input).float()
+        card=torch.topk(self.discardModel(input), 34).indices
+        #print(card)
+        #print(input[0:34])
+        for i in range(34):
+            if input[card[i].item()]>0:
+                return self.trans(card[i].item())
+    
+    def action(self, p, obs: dict):
+        if len(obs) == 0:
+            return Action(0, ActionType.PASS, None)
+        player = obs['player_id']
+        last_player = obs['last_player']
+        pass_action = Action(0, ActionType.PASS, None)
+
+        if obs['last_operation'] == ActionType.DRAW:
+            if last_player != player:
+                return pass_action
+            else:
+                if self.check_hu(obs)>=8:
+                    return Action(player, ActionType.HU, None)
+                
+                ret=self.claiming(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+                ret=torch.argmax(ret).item()
+                if ret==4 and self.check_kong(obs):
+                    return Action(player, ActionType.MELD_KONG, obs['last_tile'])
+                if ret==5 and self.check_meld_kong(obs):
+                    return Action(player, ActionType.KONG, obs['last_tile'])
+                discard=self.discard(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+                # assert(p[0][getID(discard)]>0)
+                return Action(player, ActionType.PLAY, discard)
+        if obs['last_operation'] == ActionType.KONG:
+            return pass_action
+        if last_player == player:
+            return pass_action
+        
+        if self.check_hu(obs)>=8:
+            return Action(player, ActionType.HU, None)
+        if obs['last_operation'] == ActionType.MELD_KONG:
+            return pass_action
+        
+        ret=self.claiming(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+        ret=torch.argmax(ret).item()
+        if ret==0:
+            return pass_action
+        if ret==1:
+                
+                chow_list = self.check_chow(obs)
+                if len(chow_list)==0:
+                    return pass_action
+                ret=getID(chow_list[0])
+                for i in range(ret - 1, ret + 2):
+                    if i == getID(obs['last_tile']):
+                        continue
+                    else:
+                        p[player][i]-=1
+                    p[player+4][i]+=1
+                discard=self.discard(p[player]+\
+                                    p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                    p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                    p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+
+                for i in range(ret - 1, ret + 2):
+                    if i == getID(obs['last_tile']):
+                        continue
+                    else:
+                        #print(f'{ret[i]}{i}')
+                        #tiles.remove(f'{chow_t}{i}')
+                        p[player][i]+=1
+                    p[player+4][i]-=1
+                return Action(player, ActionType.CHOW, f'{self.trans(ret)} {discard}')
+        if ret==2 and self.check_pung(obs):
+            idx=getID(obs['last_tile'])
+            p[player][idx]-=2
+            p[player+4][idx]+=3
+            
+            play_tile = self.discard(p[player]+\
+                                p[player+4]+p[(player+1)%4+4]+p[(player+2)%4+4]+p[(player+3)%4+4]+\
+                                p[player+8]+p[(player+1)%4+8]+p[(player+2)%4+8]+p[(player+3)%4+8]+\
+                                p[player+12]+p[(player+1)%4+12]+p[(player+2)%4+12]+p[(player+3)%4+12])
+            # assert(p[0][getID(play_tile)]>0)
+            p[player][idx]+=2
+            p[player+4][idx]-=3
+            return Action(player, ActionType.PUNG, play_tile)
+        if ret==3 and self.check_kong(obs):
+            return Action(player, ActionType.KONG, None)
         return pass_action
